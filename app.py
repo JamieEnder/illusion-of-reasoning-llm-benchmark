@@ -124,7 +124,8 @@ else:
         st.info("Upload the results csv to get started.")
         st.stop()
     raw = up.getvalue()
-df = load_data(raw)
+all_rows = load_data(raw)   # unfiltered copy, used for the example prompts in the About tab
+df = all_rows
 
 # ---- sidebar filters ----
 st.sidebar.header("Filters")
@@ -151,11 +152,63 @@ st.caption("Do newer 'reasoning' models resist human-style cognitive biases bett
            "OpenAI and Anthropic models, 4 tests. Exploratory results, not a finished paper."
            + (f"  [Code and data]({GITHUB_URL})" if GITHUB_URL else ""))
 
-tab_names = ["Overview"] + [v[0] for v in PILLARS.values()] + ["4 Confabulation", "Data"]
-tabs = st.tabs(tab_names)
+tab_names = ["About the tests", "Overview"] + [v[0] for v in PILLARS.values()] + ["4 Confabulation", "Data"]
+tab_about, tab_overview, *pillar_tabs, tab_conf, tab_data = st.tabs(tab_names)
+
+
+def example(pillar, condition, variant):
+    """the exact prompt the models saw (first repeat of one scenario)"""
+    rows = all_rows[(all_rows["Pillar"] == pillar) & (all_rows["Condition"] == condition)
+                    & (all_rows["Variant"] == variant) & (all_rows["Rep"] == 1)]
+    return rows["Prompt"].iloc[0] if len(rows) else "(example not available)"
+
+
+# about: what the four tests actually are
+with tab_about:
+    st.markdown("This project asks whether newer AI models fall for the same mental shortcuts that humans do. "
+                "Every test gives a model two versions of a question, a **Control** and an **Experimental**. "
+                "Only one thing differs between them, so if the answers change, that one thing swayed the model. "
+                "Below is each test with the exact wording the models saw.")
+
+    st.subheader("1. Decoy effect")
+    st.markdown("People get nudged towards a pricier option when a clearly worse option is placed next to it. "
+                "**Control:** two plans, cheap or premium. **Experimental:** a third, pointless 'decoy' plan is added. "
+                "A model is swayed if it picks the premium plan more often once the decoy is there.")
+    st.markdown("> " + example("Pillar_1_Decoy", "Experimental", "software"))
+
+    st.subheader("2. Bandwagon effect")
+    st.markdown("People go along with what they think the majority believes. "
+                "**Control:** a plain factual question. **Experimental:** the same question, but a fake survey claims "
+                "most experts believe the wrong answer. A model is swayed if it gives the wrong answer.")
+    st.markdown("> " + example("Pillar_2_Bandwagon", "Experimental", "monty_hall"))
+
+    st.subheader("3. Framing effect")
+    st.markdown("People take different risks depending on wording, even when the maths is identical. "
+                "**Control:** the options are described as lives or things *saved*. **Experimental:** the same options "
+                "are described as lost. A model is swayed if it picks the risky gamble more often in the loss wording.")
+    st.markdown("> " + example("Pillar_3_Framing", "Experimental", "cyberattack_900"))
+
+    st.subheader("4. Confabulation (making things up)")
+    st.markdown("Will a model summarise a study that doesn't exist? There are four versions of this test:")
+    for cond, text in [("Control", "**Real study.** The model should summarise it."),
+                       ("Experimental", "**Fake study, with a hint.** The model is told it can answer DOES_NOT_EXIST. "
+                                        "This turned out to be too easy: every model passed."),
+                       ("Fake_NoCue", "**Fake study, no hint.** The real test of whether it invents a summary."),
+                       ("Fake_Presupposed", "**Fake study, and the user says they need to cite it.**")]:
+        st.markdown(text)
+        st.markdown("> " + example("Pillar_4_Confabulation", cond, "prospect_theory" if cond == "Control" else "obedience"))
+
+    st.subheader("Reading the charts")
+    st.markdown("- **Effect** = % in Experimental minus % in Control, in percentage points. Bigger means the model was swayed more.\n"
+                "- **Dots** (tabs 1-3): grey = Control, purple = Experimental. A long line means a big shift.\n"
+                "- **fisher_p** is the chance of seeing a shift this big if the change did nothing. "
+                "Small numbers (under 0.05) mean it is unlikely to be luck.\n"
+                "- **Models:** 9 versions from OpenAI and Anthropic. 'Old' = GPT-4o family and Claude 4.x, "
+                "'new' = GPT-5.x and Claude 5.x (my own labels). 'Reasoning' means the model's thinking mode was switched on.\n"
+                "- **Sample:** 6 scenarios per test x 5 repeats = 30 answers per model per condition.")
 
 # overview: one effect number per model and pillar
-with tabs[0]:
+with tab_overview:
     c1, c2, c3 = st.columns(3)
     c1.metric("Answers shown", f"{len(df):,}")
     c2.metric("Models shown", df["Model"].nunique())
@@ -182,7 +235,7 @@ with tabs[0]:
         st.altair_chart(heatmap(h, sorted(h["Model"].unique())))
 
 # pillars 1-3 all work the same way
-for tab, (pillar, (label, xtitle, blurb)) in zip(tabs[1:4], PILLARS.items()):
+for tab, (pillar, (label, xtitle, blurb)) in zip(pillar_tabs, PILLARS.items()):
     with tab:
         st.markdown(blurb)
         sub = df[df["Pillar"] == pillar]
@@ -203,7 +256,7 @@ for tab, (pillar, (label, xtitle, blurb)) in zip(tabs[1:4], PILLARS.items()):
             st.dataframe(pd.DataFrame(by_scen).round(0))
 
 # pillar 4 has more than two conditions, so it gets its own layout
-with tabs[4]:
+with tab_conf:
     st.markdown("Models are asked to summarise a study. In the Control it is real, so a summary is correct. "
                 "In the other three conditions the study is made up, so a confident summary means the model "
                 "invented one.")
@@ -228,7 +281,7 @@ with tabs[4]:
                                         values="n", fill_value=0))
 
 # raw data
-with tabs[5]:
+with tab_data:
     st.caption("Every answer behind the charts, with the exact prompt and the model's raw reply.")
     cols = ["Pillar", "Condition", "Model", "Variant", "Rep", "Parsed_Meaning", "Raw_Response", "Prompt"]
     st.dataframe(df[cols])

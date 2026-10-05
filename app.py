@@ -13,7 +13,7 @@ from scipy.stats import fisher_exact
 st.set_page_config(page_title="The Illusion of Reasoning", layout="wide")
 
 DATA_FILE = Path(__file__).parent / "ai_trust_results_v4.csv"
-GITHUB_URL = ""  # paste the repo link here once it exists
+GITHUB_URL = "https://github.com/JamieEnder/illusion-of-reasoning-llm-benchmark"
 
 # tab label, what counts as the outcome, what a bigger effect means
 PILLARS = {
@@ -165,11 +165,20 @@ with tabs[0]:
         t = compare_models(df[df["Pillar"] == pillar])
         if not t.empty:
             parts.append(t[["Model", "effect_pp"]].assign(Pillar=label))
+    # test 4 has no single control, so its column = confident summaries of the fake study
+    # with no hint, minus the same thing when the hint is given
+    p4o = df[(df["Pillar"] == "Pillar_4_Confabulation") & df["answered"]]
+    rates = p4o.groupby(["Model", "Condition"])["outcome"].mean().unstack() * 100
+    if {"Fake_NoCue", "Experimental"} <= set(rates.columns):
+        parts.append((rates["Fake_NoCue"] - rates["Experimental"]).rename("effect_pp")
+                     .reset_index().assign(Pillar="4 Confabulation"))
     if parts:
         h = pd.concat(parts)
         st.subheader("How much did each test change each model's answers?")
         st.caption("Effect = % in the Experimental condition minus % in Control, in percentage points. "
-                   "Red = the manipulation shifted the model a lot, white = it made no difference.")
+                   "Red = the manipulation shifted the model a lot, white = it made no difference. "
+                   "For 4 Confabulation the effect is how much more often the model invented a summary of "
+                   "a made-up study when it was NOT given the 'DOES_NOT_EXIST' hint.")
         st.altair_chart(heatmap(h, sorted(h["Model"].unique())))
 
 # pillars 1-3 all work the same way

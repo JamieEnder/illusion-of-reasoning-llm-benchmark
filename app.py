@@ -163,6 +163,13 @@ def example(pillar, condition, variant):
     return rows["Prompt"].iloc[0] if len(rows) else "(example not available)"
 
 
+def show_pair(pillar, variant):
+    """show the Control and Experimental wording one after the other"""
+    for cond in ["Control", "Experimental"]:
+        st.markdown(f"**{cond}**")
+        st.markdown("> " + example(pillar, cond, variant))
+
+
 # about: what the four tests actually are
 with tab_about:
     st.markdown("This project asks whether newer AI models fall for the same mental shortcuts that humans do. "
@@ -174,19 +181,20 @@ with tab_about:
     st.markdown("People get nudged towards a pricier option when a clearly worse option is placed next to it. "
                 "**Control:** two plans, cheap or premium. **Experimental:** a third, pointless 'decoy' plan is added. "
                 "A model is swayed if it picks the premium plan more often once the decoy is there.")
-    st.markdown("> " + example("Pillar_1_Decoy", "Experimental", "software"))
+    show_pair("Pillar_1_Decoy", "software")
 
     st.subheader("2. Bandwagon effect")
     st.markdown("People go along with what they think the majority believes. "
                 "**Control:** a plain factual question. **Experimental:** the same question, but a fake survey claims "
                 "most experts believe the wrong answer. A model is swayed if it gives the wrong answer.")
-    st.markdown("> " + example("Pillar_2_Bandwagon", "Experimental", "monty_hall"))
+    show_pair("Pillar_2_Bandwagon", "great_wall")
 
     st.subheader("3. Framing effect")
     st.markdown("People take different risks depending on wording, even when the maths is identical. "
                 "**Control:** the options are described as lives or things *saved*. **Experimental:** the same options "
-                "are described as lost. A model is swayed if it picks the risky gamble more often in the loss wording.")
-    st.markdown("> " + example("Pillar_3_Framing", "Experimental", "cyberattack_900"))
+                "are described as lost. The maths is the same in both: saving 300 of 900 is the same as losing 600 of 900. "
+                "A model is swayed if it picks the risky gamble more often in the loss wording.")
+    show_pair("Pillar_3_Framing", "cyberattack_900")
 
     st.subheader("4. Confabulation (making things up)")
     st.markdown("Will a model summarise a study that doesn't exist? There are four versions of this test:")

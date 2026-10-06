@@ -28,7 +28,7 @@ PILLARS = {
                          "A big jump means the wording changed the model's risk-taking."),
 }
 RESULT_COLS = ["Provider", "Model", "Era", "Tier", "Reasoning", "n_control", "pct_control", "n_experimental",
-               "pct_experimental", "effect_pp", "ci_low", "ci_high", "fisher_p"]
+               "pct_experimental", "effect_pp", "ci_low", "ci_high", "fisher_p", "c_lo", "c_hi", "e_lo", "e_hi"]
 COND_LABELS = {"Control": "Control (real study, hint given)",
                "Experimental": "Fake study, hint given",
                "Fake_NoCue": "Fake study, no hint",
@@ -80,30 +80,55 @@ def compare_models(sub):
             continue
         k1, n1, k2, n2 = int(c.sum()), len(c), int(e.sum()), len(e)
         lo, hi = newcombe_diff(k1, n1, k2, n2)
+        c_lo, c_hi = wilson(k1, n1)   # 95% interval for each percentage on its own (drawn as whiskers)
+        e_lo, e_hi = wilson(k2, n2)
         rows.append(dict(zip(["Provider", "Model", "Era", "Tier", "Reasoning"], keys)) | {
             "n_control": n1, "pct_control": 100 * k1 / n1,
             "n_experimental": n2, "pct_experimental": 100 * k2 / n2,
             "effect_pp": 100 * (k2 / n2 - k1 / n1), "ci_low": 100 * lo, "ci_high": 100 * hi,
-            "fisher_p": fisher_exact([[k1, n1 - k1], [k2, n2 - k2]])[1]})
+            "fisher_p": fisher_exact([[k1, n1 - k1], [k2, n2 - k2]])[1],
+            "c_lo": 100 * c_lo, "c_hi": 100 * c_hi, "e_lo": 100 * e_lo, "e_hi": 100 * e_hi})
     return pd.DataFrame(rows, columns=RESULT_COLS)
 
 
 # ---- charts ----
 def dumbbell(t, xtitle):
-    """one row per model: grey dot = Control, purple dot = Experimental"""
+    """one row per model: grey dot = Control, purple dot = Experimental, thin bars = 95% interval"""
     order = list(t["Model"])
-    pts = t.melt(id_vars=["Model"], value_vars=["pct_control", "pct_experimental"],
-                 var_name="Condition", value_name="pct")
-    pts["Condition"] = pts["Condition"].map({"pct_control": "Control", "pct_experimental": "Experimental"})
+    cols = ["Model", "pct", "lo", "hi"]
+    pts = pd.concat([
+        t[["Model", "pct_control", "c_lo", "c_hi"]].set_axis(cols, axis=1).assign(Condition="Control"),
+        t[["Model", "pct_experimental", "e_lo", "e_hi"]].set_axis(cols, axis=1).assign(Condition="Experimental")])
+    colour = alt.Color("Condition:N", scale=alt.Scale(domain=["Control", "Experimental"],
+                                                      range=["#6b7280", "#7c3aed"]))
+    y = alt.Y("Model:N", sort=order, title=None, axis=alt.Axis(labelLimit=260))
     lines = alt.Chart(t).mark_rule(color="#9ca3af").encode(
-        y=alt.Y("Model:N", sort=order, title=None, axis=alt.Axis(labelLimit=260)), x="pct_control:Q", x2=alt.X2("pct_experimental"))
+        y=y, x="pct_control:Q", x2=alt.X2("pct_experimental"))
+    whiskers = alt.Chart(pts).mark_rule(strokeWidth=4, opacity=0.35).encode(
+        y=y, x=alt.X("lo:Q", scale=alt.Scale(domain=[0, 100])), x2=alt.X2("hi"),
+        color=alt.Color("Condition:N", legend=None, scale=alt.Scale(domain=["Control", "Experimental"],
+                                                                    range=["#6b7280", "#7c3aed"])))
     dots = alt.Chart(pts).mark_circle(size=150).encode(
-        y=alt.Y("Model:N", sort=order, title=None, axis=alt.Axis(labelLimit=260)),
-        x=alt.X("pct:Q", title=xtitle, scale=alt.Scale(domain=[0, 100])),
-        color=alt.Color("Condition:N", scale=alt.Scale(domain=["Control", "Experimental"],
-                                                       range=["#6b7280", "#7c3aed"])),
-        tooltip=["Model", "Condition", alt.Tooltip("pct:Q", format=".1f")])
-    return lines + dots
+        y=y, x=alt.X("pct:Q", title=xtitle, scale=alt.Scale(domain=[0, 100])), color=colour,
+        tooltip=["Model", "Condition", alt.Tooltip("pct:Q", format=".1f"),
+                 alt.Tooltip("lo:Q", format=".1f", title="95% low"), alt.Tooltip("hi:Q", format=".1f", title="95% high")])
+    return lines + whiskers + dots
+
+
+def forest(t):
+    """one row per model: the shift (Experimental minus Control) with its 95% interval; dashed line = no shift"""
+    order = list(t["Model"])
+    y = alt.Y("Model:N", sort=order, title=None, axis=alt.Axis(labelLimit=260))
+    bars = alt.Chart(t).mark_rule(strokeWidth=3, color="#7c3aed", opacity=0.5).encode(
+        y=y, x=alt.X("ci_low:Q", title="shift in percentage points (Experimental minus Control)",
+                     scale=alt.Scale(domain=[-100, 100])), x2=alt.X2("ci_high"))
+    dots = alt.Chart(t).mark_circle(size=130, color="#7c3aed").encode(
+        y=y, x="effect_pp:Q",
+        tooltip=["Model", alt.Tooltip("effect_pp:Q", format=".1f", title="shift (pp)"),
+                 alt.Tooltip("ci_low:Q", format=".1f", title="95% low"),
+                 alt.Tooltip("ci_high:Q", format=".1f", title="95% high")])
+    zero = alt.Chart(pd.DataFrame({"x": [0]})).mark_rule(strokeDash=[4, 4], color="#9ca3af").encode(x="x:Q")
+    return bars + dots + zero
 
 
 def heatmap(h, order):
@@ -255,7 +280,13 @@ for tab, (pillar, (label, xtitle, blurb)) in zip(pillar_tabs, PILLARS.items()):
             st.info("Nothing to show with these filters.")
             continue
         st.altair_chart(dumbbell(t, xtitle))
-        shown = t.drop(columns=["Era", "Tier"]).round(1)
+        st.caption("Thin bars = 95% confidence interval for each percentage. With about 30 answers per dot they are wide: a 0% could really be anything up to roughly 11%, and a 100% anything down to roughly 89%.")
+        st.markdown("**How big was the shift, and how sure can we be?**")
+        st.altair_chart(forest(t))
+        st.caption("Dots show the shift, whiskers the 95% confidence interval. If a whisker crosses the dashed "
+                   "zero line, the shift could be down to chance. With 30 answers per condition (6 scenarios x 5 "
+                   "repeats, which are not fully independent) these ranges are somewhat optimistic.")
+        shown = t.drop(columns=["Era", "Tier", "c_lo", "c_hi", "e_lo", "e_hi"]).round(1)
         shown["fisher_p"] = t["fisher_p"].map(lambda p: f"{p:.3g}")
         st.dataframe(shown)
         with st.expander("Effect (pp) by scenario"):

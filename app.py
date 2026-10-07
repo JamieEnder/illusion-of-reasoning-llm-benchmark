@@ -8,7 +8,6 @@ import altair as alt
 import numpy as np
 import pandas as pd
 import streamlit as st
-from scipy.stats import fisher_exact
 
 st.set_page_config(page_title="The Illusion of Reasoning", layout="wide")
 
@@ -28,31 +27,23 @@ PILLARS = {
                          "A big jump means the wording changed the model's risk-taking."),
 }
 RESULT_COLS = ["Provider", "Model", "Era", "Tier", "Reasoning", "n_control", "pct_control", "n_experimental",
-               "pct_experimental", "effect_pp", "ci_low", "ci_high", "fisher_p", "c_lo", "c_hi", "e_lo", "e_hi"]
+               "pct_experimental", "effect_pp"]
+# oldest to newest within each company, so every chart reads top to bottom in time order
+MODEL_ORDER = ["gpt-4o-mini", "gpt-4o", "gpt-5.4-mini", "gpt-5.5",
+               "claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-sonnet-4-6+thinking",
+               "claude-sonnet-5-5", "claude-sonnet-5-5+thinking"]
+
+
+def in_order(models):
+    """put model names in MODEL_ORDER (anything unexpected goes at the end)"""
+    models = list(models)
+    return sorted(models, key=lambda m: MODEL_ORDER.index(m) if m in MODEL_ORDER else len(MODEL_ORDER))
+
+
 COND_LABELS = {"Control": "Control (real study, hint given)",
                "Experimental": "Fake study, hint given",
                "Fake_NoCue": "Fake study, no hint",
                "Fake_Presupposed": "Fake study, user says they need to cite it"}
-
-
-# ---- stats helpers (same maths as analysis.py) ----
-def wilson(k, n, z=1.96):
-    if n == 0:
-        return (np.nan, np.nan)
-    p = k / n
-    denom = 1 + z**2 / n
-    centre = (p + z**2 / (2 * n)) / denom
-    half = z * np.sqrt(p * (1 - p) / n + z**2 / (4 * n**2)) / denom
-    return (max(0.0, centre - half), min(1.0, centre + half))
-
-
-def newcombe_diff(k1, n1, k2, n2):
-    p1, p2 = k1 / n1, k2 / n2
-    l1, u1 = wilson(k1, n1)
-    l2, u2 = wilson(k2, n2)
-    diff = p2 - p1
-    return (diff - np.sqrt((p2 - l2) ** 2 + (u1 - p1) ** 2),
-            diff + np.sqrt((u2 - p2) ** 2 + (p1 - l1) ** 2))
 
 
 @st.cache_data
@@ -71,50 +62,23 @@ def load_data(raw):
 
 
 def compare_models(sub):
-    """Control vs Experimental for each model (pillars 1-3)."""
+    """Control vs Experimental for each model (pillars 1-3): % in each version and the gap between them."""
     rows = []
     for keys, g in sub[sub["answered"]].groupby(["Provider", "Model", "Era", "Tier", "Reasoning"]):
         c = g[g["Condition"] == "Control"]["outcome"]
         e = g[g["Condition"] == "Experimental"]["outcome"]
         if len(c) == 0 or len(e) == 0:
             continue
-        k1, n1, k2, n2 = int(c.sum()), len(c), int(e.sum()), len(e)
-        lo, hi = newcombe_diff(k1, n1, k2, n2)
-        c_lo, c_hi = wilson(k1, n1)   # 95% interval for each percentage on its own (drawn as whiskers)
-        e_lo, e_hi = wilson(k2, n2)
         rows.append(dict(zip(["Provider", "Model", "Era", "Tier", "Reasoning"], keys)) | {
-            "n_control": n1, "pct_control": 100 * k1 / n1,
-            "n_experimental": n2, "pct_experimental": 100 * k2 / n2,
-            "effect_pp": 100 * (k2 / n2 - k1 / n1), "ci_low": 100 * lo, "ci_high": 100 * hi,
-            "fisher_p": fisher_exact([[k1, n1 - k1], [k2, n2 - k2]])[1],
-            "c_lo": 100 * c_lo, "c_hi": 100 * c_hi, "e_lo": 100 * e_lo, "e_hi": 100 * e_hi})
-    return pd.DataFrame(rows, columns=RESULT_COLS)
+            "n_control": len(c), "pct_control": 100 * c.mean(),
+            "n_experimental": len(e), "pct_experimental": 100 * e.mean(),
+            "effect_pp": 100 * (e.mean() - c.mean())})
+    out = pd.DataFrame(rows, columns=RESULT_COLS)
+    out["Model"] = pd.Categorical(out["Model"], categories=in_order(out["Model"]), ordered=True)
+    return out.sort_values("Model").reset_index(drop=True).astype({"Model": str})
 
 
 # ---- charts ----
-def dumbbell(t, xtitle):
-    """one row per model: grey dot = Control, purple dot = Experimental, thin bars = 95% interval"""
-    order = list(t["Model"])
-    cols = ["Model", "pct", "lo", "hi"]
-    pts = pd.concat([
-        t[["Model", "pct_control", "c_lo", "c_hi"]].set_axis(cols, axis=1).assign(Condition="Control"),
-        t[["Model", "pct_experimental", "e_lo", "e_hi"]].set_axis(cols, axis=1).assign(Condition="Experimental")])
-    colour = alt.Color("Condition:N", scale=alt.Scale(domain=["Control", "Experimental"],
-                                                      range=["#6b7280", "#7c3aed"]))
-    y = alt.Y("Model:N", sort=order, title=None, axis=alt.Axis(labelLimit=260))
-    lines = alt.Chart(t).mark_rule(color="#9ca3af").encode(
-        y=y, x="pct_control:Q", x2=alt.X2("pct_experimental"))
-    whiskers = alt.Chart(pts).mark_rule(strokeWidth=4, opacity=0.35).encode(
-        y=y, x=alt.X("lo:Q", scale=alt.Scale(domain=[0, 100])), x2=alt.X2("hi"),
-        color=alt.Color("Condition:N", legend=None, scale=alt.Scale(domain=["Control", "Experimental"],
-                                                                    range=["#6b7280", "#7c3aed"])))
-    dots = alt.Chart(pts).mark_circle(size=150).encode(
-        y=y, x=alt.X("pct:Q", title=xtitle, scale=alt.Scale(domain=[0, 100])), color=colour,
-        tooltip=["Model", "Condition", alt.Tooltip("pct:Q", format=".1f"),
-                 alt.Tooltip("lo:Q", format=".1f", title="95% low"), alt.Tooltip("hi:Q", format=".1f", title="95% high")])
-    return lines + whiskers + dots
-
-
 def simple_bars(t, xtitle):
     """one pair of bars per model: grey = Control, purple = Experimental, with the % written on each bar"""
     order = list(t["Model"])
@@ -133,22 +97,6 @@ def simple_bars(t, xtitle):
     labels = base.mark_text(align="left", dx=4, fontSize=11).encode(
         x="pct:Q", text=alt.Text("pct:Q", format=".0f"))
     return (bars + labels).properties(height=max(200, 46 * len(order)))
-
-
-def forest(t):
-    """one row per model: the shift (Experimental minus Control) with its 95% interval; dashed line = no shift"""
-    order = list(t["Model"])
-    y = alt.Y("Model:N", sort=order, title=None, axis=alt.Axis(labelLimit=260))
-    bars = alt.Chart(t).mark_rule(strokeWidth=3, color="#7c3aed", opacity=0.5).encode(
-        y=y, x=alt.X("ci_low:Q", title="shift in percentage points (Experimental minus Control)",
-                     scale=alt.Scale(domain=[-100, 100])), x2=alt.X2("ci_high"))
-    dots = alt.Chart(t).mark_circle(size=130, color="#7c3aed").encode(
-        y=y, x="effect_pp:Q",
-        tooltip=["Model", alt.Tooltip("effect_pp:Q", format=".1f", title="shift (pp)"),
-                 alt.Tooltip("ci_low:Q", format=".1f", title="95% low"),
-                 alt.Tooltip("ci_high:Q", format=".1f", title="95% high")])
-    zero = alt.Chart(pd.DataFrame({"x": [0]})).mark_rule(strokeDash=[4, 4], color="#9ca3af").encode(x="x:Q")
-    return bars + dots + zero
 
 
 def heatmap(h, order):
@@ -177,15 +125,13 @@ st.sidebar.header("Filters")
 
 
 def pick(label, col, data):
-    options = sorted(data[col].unique())
+    options = in_order(data[col].unique()) if col == "Model" else sorted(data[col].unique())
     chosen = st.sidebar.multiselect(label, options, default=options)
     return data[data[col].isin(chosen)]
 
 
 df = pick("Model family", "Provider", df)
-df = pick("Tier", "Tier", df)
 df = pick("Era", "Era", df)
-df = pick("Reasoning switched on", "Reasoning", df)
 df = pick("Model", "Model", df)
 if df.empty:
     st.warning("No models match those filters.")
@@ -283,7 +229,7 @@ with tab_overview:
                    "Red = the manipulation shifted the model a lot, white = it made no difference. "
                    "For 4 Confabulation the effect is how much more often the model invented a summary of "
                    "a made-up study when it was NOT given the 'DOES_NOT_EXIST' hint.")
-        st.altair_chart(heatmap(h, sorted(h["Model"].unique())))
+        st.altair_chart(heatmap(h, in_order(h["Model"].unique())))
 
 # pillars 1-3 all work the same way
 for tab, (pillar, (label, xtitle, blurb)) in zip(pillar_tabs, PILLARS.items()):
@@ -300,20 +246,11 @@ for tab, (pillar, (label, xtitle, blurb)) in zip(pillar_tabs, PILLARS.items()):
         st.altair_chart(simple_bars(t, xtitle))
         st.caption("Grey = the normal question, purple = the question with the nudge added. "
                    "The further apart the two bars, the more the model was swayed. "
-                   "Each bar is based on about 30 answers, so small gaps could just be luck.")
-        with st.expander("More detail (for the stats-minded)"):
-            st.markdown("**How big was the shift, and how sure can we be?**")
-            st.altair_chart(forest(t))
-            st.caption("Dots show the shift, whiskers the 95% confidence interval. If a whisker crosses the dashed "
-                       "zero line, the shift could be down to chance. With 30 answers per condition (6 scenarios x 5 "
-                       "repeats, which are not fully independent) these ranges are somewhat optimistic.")
-            shown = t.drop(columns=["Era", "Tier", "c_lo", "c_hi", "e_lo", "e_hi"]).round(1)
-            shown["fisher_p"] = t["fisher_p"].map(lambda p: f"{p:.3g}")
-            st.dataframe(shown)
-            st.markdown("**Effect (pp) by scenario**")
-            st.caption("Only about 5 answers per condition in each cell, so look for patterns, not exact numbers.")
-            by_scen = {s: compare_models(sub[sub["Variant"] == s]).set_index("Model")["effect_pp"] for s in chosen}
-            st.dataframe(pd.DataFrame(by_scen).round(0))
+                   "Each bar is based on about 30 answers, so a small gap could just be luck, "
+                   "while a big gap is much more trustworthy.")
+        shown = t[["Model", "pct_control", "pct_experimental", "effect_pp"]].round(0).rename(columns={
+            "pct_control": "Control %", "pct_experimental": "Experimental %", "effect_pp": "Gap (points)"})
+        st.dataframe(shown, hide_index=True)
 
 # pillar 4 has more than two conditions, so it gets its own layout
 with tab_conf:
@@ -328,7 +265,7 @@ with tab_conf:
         counts = p4.groupby(["Condition", "Model", "Parsed_Meaning"]).size().reset_index(name="n")
         counts["pct"] = 100 * counts["n"] / counts.groupby(["Condition", "Model"])["n"].transform("sum")
         chart = alt.Chart(counts).mark_bar().encode(
-            y=alt.Y("Model:N", title=None, axis=alt.Axis(labelLimit=260)),
+            y=alt.Y("Model:N", sort=in_order(counts["Model"].unique()), title=None, axis=alt.Axis(labelLimit=260)),
             x=alt.X("pct:Q", title="% of answers", scale=alt.Scale(domain=[0, 100])),
             color=alt.Color("Parsed_Meaning:N", title="what the model did",
                             scale=alt.Scale(domain=["SUMMARY", "HEDGED_UNAWARE", "DOES_NOT_EXIST"],

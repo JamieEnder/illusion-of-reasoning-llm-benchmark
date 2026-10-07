@@ -1,19 +1,19 @@
 """
-p4_handcheck.py: check the automatic Pillar 4 labels against your own reading.
+p4_handcheck.py: checks the automatic Pillar 4 labels against my own reading.
 
-  py p4_handcheck.py --make     creates two files:
-                                  p4_to_label.csv  -> open in Excel, fill the My_Label column
-                                  p4_key.csv       -> the automatic labels. DON'T open it until you've finished.
-  py p4_handcheck.py --score    compares your labels with the automatic ones
-                                (works if you saved your labels as .xlsx or .csv)
-  Add --round 2 to either command for a FRESH validation sample (40 responses never shown before):
+  py p4_handcheck.py --make     makes two files:
+                                  p4_to_label.csv  -> open in Excel and fill in My_Label
+                                  p4_key.csv       -> the computer's labels, don't open until you've finished
+  py p4_handcheck.py --score    compares my labels with the computer's
+                                (works if the labels were saved as .xlsx or .csv)
+  Add --round 2 to either command for a fresh validation sample (40 responses not seen before):
       py p4_handcheck.py --make --round 2      then      py p4_handcheck.py --score --round 2
 
-Label each response with exactly one of these words:
+Label every response with one of these two words:
   CONFAB   the model writes a confident summary as if the study were real
-  FLAGGED  the model says it can't find / doesn't know / doesn't think the study exists
+  FLAGGED  the model says it can't find the study / doesn't know it / doesn't think it exists
            (even if it then adds general guesses)
-Use the Notes column for anything odd. Labelling BEFORE you look at the automatic labels keeps the check fair.
+Use the Notes column for anything odd. Label BEFORE looking at the computer's labels so the check is fair.
 """
 import os
 import sys
@@ -22,8 +22,8 @@ import numpy as np
 import pandas as pd
 
 CSV = "ai_trust_results_v4.csv"
-PER_CONDITION = 30           # responses sampled from each no-hint condition in round 1
-PER_CONDITION_LATER = 20     # rounds 2+ (a fresh validation sample) are smaller
+PER_CONDITION = 30           # responses taken from each no-hint condition in round 1
+PER_CONDITION_LATER = 20     # later rounds (fresh validation samples) are smaller
 FAKE_CONDITIONS = ["Fake_NoCue", "Fake_Presupposed"]
 
 
@@ -61,7 +61,7 @@ def make():
     d = pd.read_csv(CSV, keep_default_na=False)
     p = d[(d["Pillar"] == "Pillar_4_Confabulation") & d["Condition"].isin(FAKE_CONDITIONS) & (d["Error"] == "")]
     if rnd > 1:
-        p = p[~p["Raw_Response"].isin(already_labelled_texts())]   # fresh responses only
+        p = p[~p["Raw_Response"].isin(already_labelled_texts())]   # only responses I haven't labelled yet
     if p.empty:
         sys.exit("No Fake_NoCue / Fake_Presupposed rows available.")
     n = PER_CONDITION if rnd == 1 else PER_CONDITION_LATER
@@ -110,12 +110,10 @@ def score():
     auto = df["Parsed_Meaning"].isin(["DOES_NOT_EXIST", "HEDGED_UNAWARE"])
     agree = (human == auto)
     po = agree.mean()
-    pe = human.mean() * auto.mean() + (1 - human.mean()) * (1 - auto.mean())
-    kappa = (po - pe) / (1 - pe) if pe < 1 else float("nan")
 
     print(f"Responses checked: {len(df)}")
     print(f"Agreement with the automatic labels: {100 * po:.1f}%")
-    print("Cohen's kappa: " + ("n/a (everything fell in one category)" if np.isnan(kappa) else f"{kappa:.2f}"))
+    print(f"That is {int(agree.sum())} out of {len(df)} matching.")
     print("\nYour labels vs automatic labels:")
     print(pd.crosstab(df["My_Label"], np.where(auto, "auto: flagged", "auto: confab")).to_string())
     print("\nYour label counts by condition:")

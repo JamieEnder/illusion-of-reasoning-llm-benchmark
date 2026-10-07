@@ -1,5 +1,5 @@
 """
-The Illusion of Reasoning: benchmark script (v4)
+Swayed or Steady?: benchmark script (v4)
 Gives OpenAI and Anthropic models four classic bias set-ups (decoy, bandwagon, framing,
 confabulation) and saves every answer to a csv.
 

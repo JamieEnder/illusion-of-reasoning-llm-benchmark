@@ -1,4 +1,4 @@
-# app.py: dashboard for "The Illusion of Reasoning"
+# app.py: dashboard for "Swayed or Steady?"
 # run it with:   py -m streamlit run app.py
 # it reads ai_trust_results_v4.csv from the same folder
 import io
@@ -9,10 +9,10 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-st.set_page_config(page_title="The Illusion of Reasoning", layout="wide")
+st.set_page_config(page_title="Swayed or Steady?", layout="wide")
 
 DATA_FILE = Path(__file__).parent / "ai_trust_results_v4.csv"
-GITHUB_URL = "https://github.com/JamieEnder/illusion-of-reasoning-llm-benchmark"
+GITHUB_URL = "https://github.com/JamieEnder/swayed-or-steady"
 
 # tab label, what counts as the outcome, what a bigger effect means
 PILLARS = {
@@ -144,9 +144,9 @@ if df.empty:
     st.stop()
 
 # ---- page ----
-st.title("The Illusion of Reasoning")
-st.caption("Do newer 'reasoning' models resist human-style cognitive biases better than older ones? "
-           "OpenAI and Anthropic models, 4 tests. Exploratory results, not a finished paper."
+st.title("Swayed or Steady?")
+st.caption("Testing AI chatbots on classic cognitive psychology experiments: do they get swayed by nudges "
+           "that shouldn't change a good answer? 9 OpenAI and Anthropic models, 4 tests. Early findings, not a finished paper."
            + (f"  [Code and data]({GITHUB_URL})" if GITHUB_URL else ""))
 
 tab_names = ["About the tests", "Overview"] + [v[0] for v in PILLARS.values()] + ["4 Confabulation", "Data"]
@@ -289,4 +289,4 @@ with tab_data:
     cols = ["Pillar", "Condition", "Model", "Variant", "Rep", "Parsed_Meaning", "Raw_Response", "Prompt"]
     st.dataframe(df[cols])
     st.download_button("Download these rows as csv", df.to_csv(index=False).encode("utf-8"),
-                       file_name="illusion_of_reasoning_filtered.csv")
+                       file_name="swayed_or_steady_filtered.csv")

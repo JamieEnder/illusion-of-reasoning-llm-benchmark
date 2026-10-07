@@ -1,6 +1,6 @@
 # The Illusion of Reasoning
 
-AI chatbots work by predicting the next most likely word, one piece at a time. Critics say that means they don't really understand anything, so can you trust what they tell you? Would you bet on them picking the right word? I wanted to test that properly instead of just arguing about it.
+AI chatbots work by predicting the next most likely word, one piece at a time. Critics say that means they don't really understand anything, so can you trust what they tell you? Would you bet on them picking the right word?
 
 I used 9 versions of OpenAI and Anthropic models: a mix of older and newer models, full-size and smaller versions, and some with thinking switched on. I presented them with four classic psychological tests: the decoy effect, the bandwagon effect, the framing effect, and confabulation (making things up). Each test checks whether the model gives in to a nudge that shouldn't change a good answer.
 
@@ -27,7 +27,7 @@ Test 4 has four versions: a real study (the control), a fake study where the pro
 - **Fairness:** every model gets exactly the same prompts, and the order of the options is shuffled but kept the same across models.
 - **Scoring:** a script reads each answer and labels it. For test 4, it decides whether the model admitted it didn't know the study or confidently made up a summary. To check it was working, I labelled 60 answers by hand and used them to fix the script's rules. Then I labelled 40 new answers it had never seen, and the script matched me on all 40.
 
-**How I compared them:** To measure the impact, I compared how frequently each model gave the swayed answer across both versions. With a sample of 30 answers per condition, only the larger gaps are big enough to trust over random chance.
+**How I compared them:** To measure the impact, I compared how frequently each model gave the swayed answer across both versions. With a sample of 30 answers per condition, only the larger gaps are significant enough to trust over random chance.
 
 **Temperature (randomness):** I set 0.7, but several models don't allow it, so only gpt-4o and gpt-4o-mini actually ran at 0.7 and the rest used their default.
 
@@ -75,4 +75,4 @@ Test 4 has four versions: a real study (the control), a fake study where the pro
 
 ## A note on AI help
 
-I built this with a lot of help from AI assistants (Claude and Gemini): they wrote most of the code, and I used them for feedback on the study design and for checking the analysis. The idea, the choice of tests and models, and the hand-labelling of the test 4 answers were mine. The tables and charts come from code that counts the answers in the results file, so anyone can rerun it and get the same numbers. I also checked a sample of the figures by hand against the raw data in Excel, and they matched.
+I built this with help from AI assistants (Claude and Gemini): they assisted with the code, and I used them for feedback on the study design and for checking the analysis. The idea, the choice of tests and models, and the hand-labelling of the test 4 answers were mine. The tables and charts come from code that counts the answers in the results file, so anyone can rerun it and get the same numbers. I also checked a sample of the figures by hand against the raw data in Excel, and they matched.

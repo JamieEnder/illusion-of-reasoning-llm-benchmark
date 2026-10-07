@@ -115,6 +115,26 @@ def dumbbell(t, xtitle):
     return lines + whiskers + dots
 
 
+def simple_bars(t, xtitle):
+    """one pair of bars per model: grey = Control, purple = Experimental, with the % written on each bar"""
+    order = list(t["Model"])
+    long = pd.concat([
+        t[["Model", "pct_control"]].set_axis(["Model", "pct"], axis=1).assign(Version="Control"),
+        t[["Model", "pct_experimental"]].set_axis(["Model", "pct"], axis=1).assign(Version="Experimental")])
+    base = alt.Chart(long).encode(
+        y=alt.Y("Model:N", sort=order, title=None, axis=alt.Axis(labelLimit=260)),
+        yOffset=alt.YOffset("Version:N", sort=["Control", "Experimental"]))
+    bars = base.mark_bar().encode(
+        x=alt.X("pct:Q", title=xtitle, scale=alt.Scale(domain=[0, 105]),
+                axis=alt.Axis(values=[0, 25, 50, 75, 100])),
+        color=alt.Color("Version:N", title=None, sort=["Control", "Experimental"],
+                        scale=alt.Scale(domain=["Control", "Experimental"], range=["#9ca3af", "#7c3aed"])),
+        tooltip=["Model", "Version", alt.Tooltip("pct:Q", format=".0f", title="%")])
+    labels = base.mark_text(align="left", dx=4, fontSize=11).encode(
+        x="pct:Q", text=alt.Text("pct:Q", format=".0f"))
+    return (bars + labels).properties(height=max(200, 46 * len(order)))
+
+
 def forest(t):
     """one row per model: the shift (Experimental minus Control) with its 95% interval; dashed line = no shift"""
     order = list(t["Model"])
@@ -232,10 +252,8 @@ with tab_about:
         st.markdown("> " + example("Pillar_4_Confabulation", cond, "prospect_theory" if cond == "Control" else "obedience"))
 
     st.subheader("Reading the charts")
-    st.markdown("- **Effect** = % in Experimental minus % in Control, in percentage points. Bigger means the model was swayed more.\n"
-                "- **Dots** (tabs 1-3): grey = Control, purple = Experimental. A long line means a big shift.\n"
-                "- **fisher_p** is the chance of seeing a shift this big if the change did nothing. "
-                "Small numbers (under 0.05) mean it is unlikely to be luck.\n"
+    st.markdown("- **Bars** (tabs 1-3): grey = Control, purple = Experimental. The further apart they are, the more the model was swayed.\n"
+                "- **Effect** (overview) = % in Experimental minus % in Control, in percentage points.\n"
                 "- **Models:** 9 versions from OpenAI and Anthropic. 'Old' = GPT-4o family and Claude 4.x, "
                 "'new' = GPT-5.x and Claude 5.x (my own labels). 'Reasoning' means the model's thinking mode was switched on.\n"
                 "- **Sample:** 6 scenarios per test x 5 repeats = 30 answers per model per condition.")
@@ -279,17 +297,20 @@ for tab, (pillar, (label, xtitle, blurb)) in zip(pillar_tabs, PILLARS.items()):
         if t.empty:
             st.info("Nothing to show with these filters.")
             continue
-        st.altair_chart(dumbbell(t, xtitle))
-        st.caption("Thin bars = 95% confidence interval for each percentage. With about 30 answers per dot they are wide: a 0% could really be anything up to roughly 11%, and a 100% anything down to roughly 89%.")
-        st.markdown("**How big was the shift, and how sure can we be?**")
-        st.altair_chart(forest(t))
-        st.caption("Dots show the shift, whiskers the 95% confidence interval. If a whisker crosses the dashed "
-                   "zero line, the shift could be down to chance. With 30 answers per condition (6 scenarios x 5 "
-                   "repeats, which are not fully independent) these ranges are somewhat optimistic.")
-        shown = t.drop(columns=["Era", "Tier", "c_lo", "c_hi", "e_lo", "e_hi"]).round(1)
-        shown["fisher_p"] = t["fisher_p"].map(lambda p: f"{p:.3g}")
-        st.dataframe(shown)
-        with st.expander("Effect (pp) by scenario"):
+        st.altair_chart(simple_bars(t, xtitle))
+        st.caption("Grey = the normal question, purple = the question with the nudge added. "
+                   "The further apart the two bars, the more the model was swayed. "
+                   "Each bar is based on about 30 answers, so small gaps could just be luck.")
+        with st.expander("More detail (for the stats-minded)"):
+            st.markdown("**How big was the shift, and how sure can we be?**")
+            st.altair_chart(forest(t))
+            st.caption("Dots show the shift, whiskers the 95% confidence interval. If a whisker crosses the dashed "
+                       "zero line, the shift could be down to chance. With 30 answers per condition (6 scenarios x 5 "
+                       "repeats, which are not fully independent) these ranges are somewhat optimistic.")
+            shown = t.drop(columns=["Era", "Tier", "c_lo", "c_hi", "e_lo", "e_hi"]).round(1)
+            shown["fisher_p"] = t["fisher_p"].map(lambda p: f"{p:.3g}")
+            st.dataframe(shown)
+            st.markdown("**Effect (pp) by scenario**")
             st.caption("Only about 5 answers per condition in each cell, so look for patterns, not exact numbers.")
             by_scen = {s: compare_models(sub[sub["Variant"] == s]).set_index("Model")["effect_pp"] for s in chosen}
             st.dataframe(pd.DataFrame(by_scen).round(0))

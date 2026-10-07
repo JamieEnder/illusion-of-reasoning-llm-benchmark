@@ -34,7 +34,7 @@ for (pillar, model), g in d[d["answered"] & d["Pillar"].isin(
     e = g[g["Condition"] == "Experimental"]["outcome"]
     rows.append(dict(Pillar=pillar, Model=model, n_control=len(c), pct_control=round(100 * c.mean(), 1),
                      n_experimental=len(e), pct_experimental=round(100 * e.mean(), 1),
-                     gap_points=round(100 * (e.mean() - c.mean()), 1)))
+                     difference=round(100 * (e.mean() - c.mean()), 1)))
 summary = pd.DataFrame(rows)
 summary.to_csv(OUT / "tests_1_to_3.csv", index=False)
 print("Tests 1-3: % swayed in Control vs Experimental\n")

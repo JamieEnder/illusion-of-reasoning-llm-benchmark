@@ -105,7 +105,7 @@ def simple_bars(t, xtitle):
 def heatmap(h, order):
     base = alt.Chart(h).encode(x=alt.X("Pillar:N", title=None, axis=alt.Axis(labelAngle=0)), y=alt.Y("Model:N", sort=order, title=None, axis=alt.Axis(labelLimit=260)))
     rect = base.mark_rect().encode(color=alt.Color(
-        "effect_pp:Q", title="effect (pp)",
+        "effect_pp:Q", title="difference",
         scale=alt.Scale(scheme="redblue", domain=[-100, 100], reverse=True)))
     text = base.mark_text().encode(text=alt.Text("effect_pp:Q", format=".0f"))
     return rect + text
@@ -205,7 +205,7 @@ with tab_about:
 
     st.subheader("Reading the charts")
     st.markdown("- **Bars** (tabs 1-3): grey = Control, purple = Experimental. The further apart they are, the more the model was swayed.\n"
-                "- **Effect** (overview) = % in Experimental minus % in Control, in percentage points.\n"
+                "- **Difference** (overview) = how much higher the % was in the Experimental version than in Control. Going from 3% to 100% shows as 97.\n"
                 "- **Models:** 9 versions from OpenAI and Anthropic. 'Old' = GPT-4o family and Claude 4.x, "
                 "'new' = GPT-5.x and Claude 5.x (my own labels). 'Reasoning' means the model's thinking mode was switched on.\n"
                 "- **Sample:** 6 scenarios per test x 5 repeats = 30 answers per model per condition.")
@@ -231,7 +231,7 @@ with tab_overview:
     if parts:
         h = pd.concat(parts)
         st.subheader("How much did each test change each model's answers?")
-        st.caption("Effect = % in the Experimental condition minus % in Control, in percentage points. "
+        st.caption("Each number = how much higher the % was in the Experimental version than in Control (3% to 100% shows as 97). "
                    "Red = the manipulation shifted the model a lot, white = it made no difference. "
                    "For 4 Confabulation the effect is how much more often the model invented a summary of "
                    "a made-up study when it was NOT given the 'DOES_NOT_EXIST' hint.")
@@ -254,8 +254,8 @@ for tab, (pillar, (label, xtitle, blurb)) in zip(pillar_tabs, PILLARS.items()):
                    "The further apart the two bars, the more the model was swayed. "
                    "Each bar is based on about 30 answers, so a small gap could just be luck, "
                    "while a big gap is much more trustworthy.")
-        shown = t[["Model", "pct_control", "pct_experimental", "effect_pp"]].round(0).rename(columns={
-            "pct_control": "Control %", "pct_experimental": "Experimental %", "effect_pp": "Gap (points)"})
+        shown = t[["Model", "pct_control", "pct_experimental"]].round(0).rename(columns={
+            "pct_control": "Control %", "pct_experimental": "Experimental %"})
         st.dataframe(shown, hide_index=True)
 
 # pillar 4 has more than two conditions, so it gets its own layout

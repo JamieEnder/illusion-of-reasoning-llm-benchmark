@@ -77,4 +77,4 @@ Test 4 has four versions: a real study (the control), a fake study where the pro
 
 ## A note on AI help
 
-I built this with a lot of help from AI assistants (Claude and Gemini): they wrote most of the code, and I used them for feedback on the study design and for checking the analysis. The idea, the choice of tests and models, and the hand-labelling of the test 4 answers were mine. The tables and charts come from code that counts the answers in the results file, so anyone can rerun it and get the same numbers. I also checked a sample of the figures by hand against the raw data in Excel, and they matched.
+I built this with help from AI assistants (Claude and Gemini): they assisted with the code, and I used them for feedback on the study design and for checking the analysis. The idea, the choice of tests and models, and the hand-labelling of the test 4 answers were mine. The tables and charts come from code that counts the answers in the results file, so anyone can rerun it and get the same numbers. I also checked a sample of the figures by hand against the raw data in Excel, and they matched.

@@ -28,10 +28,12 @@ PILLARS = {
 }
 RESULT_COLS = ["Provider", "Model", "Era", "Tier", "Reasoning", "n_control", "pct_control", "n_experimental",
                "pct_experimental", "effect_pp"]
-# oldest to newest within each company, so every chart reads top to bottom in time order
-MODEL_ORDER = ["gpt-4o-mini", "gpt-4o", "gpt-5.4-mini", "gpt-5.5",
-               "claude-haiku-4-5-20251001", "claude-sonnet-4-6", "claude-sonnet-4-6+thinking",
-               "claude-sonnet-5-5", "claude-sonnet-5-5+thinking"]
+# friendly names for the charts, oldest to newest within each company (the csv keeps the real API names)
+NAMES = {"gpt-4o-mini": "GPT-4o mini", "gpt-4o": "GPT-4o", "gpt-5.4-mini": "GPT-5.4 mini", "gpt-5.5": "GPT-5.5",
+         "claude-haiku-4-5-20251001": "Haiku 4.5", "claude-sonnet-4-6": "Sonnet 4.6",
+         "claude-sonnet-4-6+thinking": "Sonnet 4.6 (thinking)", "claude-sonnet-5-5": "Sonnet 5.5",
+         "claude-sonnet-5-5+thinking": "Sonnet 5.5 (thinking)"}
+MODEL_ORDER = list(NAMES.values())
 
 
 def in_order(models):
@@ -49,6 +51,7 @@ COND_LABELS = {"Control": "Control (real study, hint given)",
 @st.cache_data
 def load_data(raw):
     d = pd.read_csv(io.BytesIO(raw), keep_default_na=False)
+    d["Model"] = d["Model"].map(NAMES).fillna(d["Model"])
     d = d[d["Error"] == ""].copy()
     d["answered"] = ~d["Parsed_Meaning"].isin(["UNPARSED", ""])
     right = d["Scoring_Key"].str.replace("correct=", "", regex=False)
@@ -132,6 +135,9 @@ def pick(label, col, data):
 
 df = pick("Model family", "Provider", df)
 df = pick("Era", "Era", df)
+show_thinking = st.sidebar.checkbox("Show the 'thinking' versions", value=False)
+if not show_thinking:
+    df = df[~df["Model"].str.contains("thinking")]
 df = pick("Model", "Model", df)
 if df.empty:
     st.warning("No models match those filters.")

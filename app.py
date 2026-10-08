@@ -42,6 +42,11 @@ def in_order(models):
     return sorted(models, key=lambda m: MODEL_ORDER.index(m) if m in MODEL_ORDER else len(MODEL_ORDER))
 
 
+AI_NOTE = ("I built this with a lot of help from AI assistants (Claude and Gemini): they wrote most of the code, "
+           "and I used them for feedback on the study design and for checking the analysis. The idea, the choice of "
+           "tests and models, and the hand-labelling of the test 4 answers were mine. The tables and charts come from "
+           "code that counts the answers in the results file, so anyone can rerun it and get the same numbers. I also "
+           "checked a sample of the figures by hand against the raw data in Excel, and they matched.")
 COND_LABELS = {"Control": "Control (real study, hint given)",
                "Experimental": "Fake study, hint given",
                "Fake_NoCue": "Fake study, no hint",
@@ -139,6 +144,7 @@ show_thinking = st.sidebar.checkbox("Show the 'thinking' versions", value=False)
 if not show_thinking:
     df = df[~df["Model"].str.contains("thinking")]
 df = pick("Model", "Model", df)
+st.sidebar.caption("Built with help from AI assistants. See \"A note on AI help\" at the bottom of the About tab.")
 if df.empty:
     st.warning("No models match those filters.")
     st.stop()
@@ -208,7 +214,11 @@ with tab_about:
                 "- **Difference** (overview) = how much higher the % was in the Experimental version than in Control. Going from 3% to 100% shows as 97.\n"
                 "- **Models:** 9 versions from OpenAI and Anthropic. 'Old' = GPT-4o family and Claude 4.x, "
                 "'new' = GPT-5.x and Claude 5.x (my own labels). 'Reasoning' means the model's thinking mode was switched on.\n"
-                "- **Sample:** 6 scenarios per test x 5 repeats = 30 answers per model per condition.")
+                "- **Sample:** 6 scenarios per test x 5 repeats = 30 answers per model per condition.\n"
+                "- **Thinking versions** of the Sonnet models are hidden by default. Tick the box in the sidebar to show them.")
+
+    st.subheader("A note on AI help")
+    st.markdown(AI_NOTE)
 
 # overview: one effect number per model and pillar
 with tab_overview:

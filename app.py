@@ -42,7 +42,7 @@ def in_order(models):
     return sorted(models, key=lambda m: MODEL_ORDER.index(m) if m in MODEL_ORDER else len(MODEL_ORDER))
 
 
-AI_NOTE = ("I built this with help from AI assistants (Claude and Gemini): they assisted with the code, "
+AI_NOTE = ("I built this with help from AI assistants (Claude and Gemini): they wrote assisted with most of the code, "
            "and I used them for feedback on the study design and for checking the analysis. The idea, the choice of "
            "tests and models, and the hand-labelling of the test 4 answers were mine. The tables and charts come from "
            "code that counts the answers in the results file, so anyone can rerun it and get the same numbers. I also "
@@ -175,7 +175,7 @@ def show_pair(pillar, variant):
 
 # about: what the four tests actually are
 with tab_about:
-    st.markdown("This project asks whether newer AI models fall for the same mental shortcuts that humans do. "
+    st.markdown("This project asks whether AI chatbots fall for the same mental shortcuts that humans do, and whether newer models resist them better than older ones. "
                 "Every test gives a model two versions of a question, a **Control** and an **Experimental**. "
                 "Only one thing differs between them, so if the answers change, that one thing swayed the model. "
                 "Below is each test with the exact wording the models saw.")
